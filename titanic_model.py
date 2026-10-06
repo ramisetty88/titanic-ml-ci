@@ -1,11 +1,14 @@
+import json
+import joblib
 import pandas as pd
+
 from sklearn.model_selection import train_test_split
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, confusion_matrix
 
 
 def load_data():
@@ -14,9 +17,14 @@ def load_data():
 
 
 def train_model():
+    print("Loading Titanic dataset...")
+
     data = load_data()
 
-    # Select input features
+    print("Dataset loaded successfully.")
+    print("Number of records:", len(data))
+
+    # Input features
     features = [
         "Pclass",
         "Sex",
@@ -30,7 +38,7 @@ def train_model():
     X = data[features]
     y = data["Survived"]
 
-    # Numerical and categorical columns
+    # Numerical features
     numerical_features = [
         "Pclass",
         "Age",
@@ -39,17 +47,18 @@ def train_model():
         "Fare"
     ]
 
+    # Categorical features
     categorical_features = [
         "Sex",
         "Embarked"
     ]
 
-    # Preprocessing for numerical data
+    # Numerical preprocessing
     numerical_transformer = Pipeline([
         ("imputer", SimpleImputer(strategy="median"))
     ])
 
-    # Preprocessing for categorical data
+    # Categorical preprocessing
     categorical_transformer = Pipeline([
         ("imputer", SimpleImputer(strategy="most_frequent")),
         ("onehot", OneHotEncoder(handle_unknown="ignore"))
@@ -61,19 +70,19 @@ def train_model():
         ("cat", categorical_transformer, categorical_features)
     ])
 
-    # ML model
+    # Random Forest model
     model = RandomForestClassifier(
         n_estimators=100,
         random_state=42
     )
 
-    # Complete pipeline
+    # Complete ML pipeline
     pipeline = Pipeline([
         ("preprocessor", preprocessor),
         ("model", model)
     ])
 
-    # Split data
+    # Split dataset
     X_train, X_test, y_train, y_test = train_test_split(
         X,
         y,
@@ -82,21 +91,43 @@ def train_model():
         stratify=y
     )
 
-    # Train
+    print("Training records:", len(X_train))
+    print("Testing records :", len(X_test))
+
+    # Train model
+    print("Training Titanic survival model...")
     pipeline.fit(X_train, y_train)
 
-    # Predict
+    # Prediction
     predictions = pipeline.predict(X_test)
 
-    # Accuracy
+    # Evaluation
     accuracy = accuracy_score(y_test, predictions)
+    matrix = confusion_matrix(y_test, predictions)
 
-    print("Titanic Survival Prediction")
-    print("---------------------------")
-    print("Total records :", len(data))
-    print("Training records :", len(X_train))
-    print("Testing records :", len(X_test))
-    print("Accuracy :", round(accuracy, 4))
+    print("\nModel Evaluation")
+    print("----------------")
+    print("Accuracy:", round(accuracy, 4))
+
+    print("\nConfusion Matrix:")
+    print(matrix)
+
+    # Save trained model
+    joblib.dump(pipeline, "titanic_model.pkl")
+
+    print("\nModel saved as titanic_model.pkl")
+
+    # Save metrics
+    metrics = {
+        "accuracy": float(accuracy),
+        "training_records": len(X_train),
+        "testing_records": len(X_test)
+    }
+
+    with open("metrics.json", "w") as file:
+        json.dump(metrics, file, indent=4)
+
+    print("Metrics saved as metrics.json")
 
     return pipeline, accuracy
 
