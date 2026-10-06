@@ -9,7 +9,7 @@ from sklearn.metrics import accuracy_score
 
 
 def load_data():
-    data = pd.read_csv("titanic.csv")
+    data = pd.read_csv("titanic_passenger_raw_600.csv")
     return data
 
 
