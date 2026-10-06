@@ -17,12 +17,24 @@ def load_data():
 
 
 def train_model():
+
     print("Loading Titanic dataset...")
 
     data = load_data()
 
     print("Dataset loaded successfully.")
     print("Number of records:", len(data))
+
+    # Feature engineering
+    data["FamilySize"] = data["SibSp"] + data["Parch"] + 1
+
+    data["IsAlone"] = (data["FamilySize"] == 1).astype(int)
+
+    data["Title"] = (
+        data["Name"]
+        .str.extract(r",\s*([^.]*)\.")[0]
+        .str.strip()
+    )
 
     # Input features
     features = [
@@ -32,7 +44,10 @@ def train_model():
         "SibSp",
         "Parch",
         "Fare",
-        "Embarked"
+        "Embarked",
+        "FamilySize",
+        "IsAlone",
+        "Title"
     ]
 
     X = data[features]
@@ -44,13 +59,16 @@ def train_model():
         "Age",
         "SibSp",
         "Parch",
-        "Fare"
+        "Fare",
+        "FamilySize",
+        "IsAlone"
     ]
 
     # Categorical features
     categorical_features = [
         "Sex",
-        "Embarked"
+        "Embarked",
+        "Title"
     ]
 
     # Numerical preprocessing
@@ -70,19 +88,21 @@ def train_model():
         ("cat", categorical_transformer, categorical_features)
     ])
 
-    # Random Forest model
+    # Random Forest
     model = RandomForestClassifier(
-        n_estimators=100,
+        n_estimators=500,
+        max_depth=6,
+        min_samples_leaf=2,
         random_state=42
     )
 
-    # Complete ML pipeline
+    # Complete pipeline
     pipeline = Pipeline([
         ("preprocessor", preprocessor),
         ("model", model)
     ])
 
-    # Split dataset
+    # Split data
     X_train, X_test, y_train, y_test = train_test_split(
         X,
         y,
@@ -94,11 +114,12 @@ def train_model():
     print("Training records:", len(X_train))
     print("Testing records :", len(X_test))
 
-    # Train model
+    # Train
     print("Training Titanic survival model...")
+
     pipeline.fit(X_train, y_train)
 
-    # Prediction
+    # Predict
     predictions = pipeline.predict(X_test)
 
     # Evaluation
@@ -112,7 +133,7 @@ def train_model():
     print("\nConfusion Matrix:")
     print(matrix)
 
-    # Save trained model
+    # Save model
     joblib.dump(pipeline, "titanic_model.pkl")
 
     print("\nModel saved as titanic_model.pkl")
