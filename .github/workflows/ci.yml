@@ -1,3 +1,4 @@
+
 name: Titanic ML CI
 
 on:
@@ -39,3 +40,14 @@ jobs:
 
       - name: Run automated ML tests
         run: python -m unittest discover -v
+
+      - name: Upload validated ML artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: titanic-ml-artifacts
+          path: |
+            titanic_model.pkl
+            metrics.json
+            titanic_passenger_raw_600.csv
+          if-no-files-found: error
+          retention-days: 7
