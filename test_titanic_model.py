@@ -1,3 +1,4 @@
+
 import json
 import os
 import unittest
@@ -46,7 +47,10 @@ class TestTitanicMLPipeline(unittest.TestCase):
             "SibSp": 0,
             "Parch": 0,
             "Fare": 80,
-            "Embarked": "C"
+            "Embarked": "C",
+            "Title": "Miss",
+            "FamilySize": 1,
+            "IsAlone": 1
         }])
 
         prediction = model.predict(sample)[0]
@@ -63,7 +67,10 @@ class TestTitanicMLPipeline(unittest.TestCase):
             "SibSp": 0,
             "Parch": 0,
             "Fare": 80,
-            "Embarked": "C"
+            "Embarked": "C",
+            "Title": "Miss",
+            "FamilySize": 1,
+            "IsAlone": 1
         }])
 
         prediction = model.predict(sample)[0]
@@ -80,7 +87,10 @@ class TestTitanicMLPipeline(unittest.TestCase):
             "SibSp": 1,
             "Parch": 1,
             "Fare": 10,
-            "Embarked": "S"
+            "Embarked": "S",
+            "Title": "Mr",
+            "FamilySize": 3,
+            "IsAlone": 0
         }])
 
         prediction = model.predict(sample)[0]
