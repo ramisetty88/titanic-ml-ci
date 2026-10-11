@@ -51,3 +51,29 @@ jobs:
             titanic_passenger_raw_600.csv
           if-no-files-found: error
           retention-days: 7
+          
+      - name: Run prediction API tests
+        run: python -m unittest test_app.py -v
+
+      - name: Prepare release candidate
+        run: |
+          mkdir -p release_candidate
+          cp app.py release_candidate/
+          cp titanic_model.pkl release_candidate/
+          cp metrics.json release_candidate/
+          cp requirements.txt release_candidate/
+          printf '%s\n' \
+            'Titanic Survival Prediction Application' \
+            'Start: python app.py' \
+            'Health endpoint: GET /' \
+            'Prediction endpoint: POST /predict' \
+            > release_candidate/DEPLOYMENT.txt
+
+      - name: Upload release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: titanic-ml-release
+          path: release_candidate/
+          if-no-files-found: error
+          retention-days: 7
+
