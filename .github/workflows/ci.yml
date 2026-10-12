@@ -3,7 +3,7 @@ name: Titanic ML CI
 
 on:
   push:
-    branches: 
+    branches:
       - main
   pull_request:
     branches:
@@ -38,8 +38,11 @@ jobs:
       - name: Check ML quality gate
         run: python quality_gate.py
 
-      - name: Run automated ML tests
-        run: python -m unittest discover -v
+      - name: Run ML pipeline tests
+        run: python -m unittest test_titanic_model.py -v
+
+      - name: Run prediction API tests
+        run: python -m unittest test_app.py -v
 
       - name: Upload validated ML artifacts
         uses: actions/upload-artifact@v4
@@ -51,10 +54,55 @@ jobs:
             titanic_passenger_raw_600.csv
           if-no-files-found: error
           retention-days: 7
-          
-      - name: Run prediction API tests
-        run: python -m unittest test_app.py -v
 
+      # Practical-7: Build Docker image
+      - name: Build Docker image
+        run: docker build -t titanic-ml:${{ github.sha }} .
+
+      # Start the container
+      - name: Start Docker container
+        run: |
+          docker run -d \
+            --name titanic-ml-container \
+            -p 5000:5000 \
+            titanic-ml:${{ github.sha }}
+
+      # Test the existing GET / endpoint
+      - name: Test application health endpoint
+        run: |
+          for i in {1..15}; do
+            if curl --fail --silent http://localhost:5000/; then
+              echo "Application is ready."
+              exit 0
+            fi
+            echo "Waiting for application... attempt $i"
+            sleep 2
+          done
+          docker logs titanic-ml-container
+          exit 1
+
+      # Test the existing POST /predict endpoint
+      - name: Test prediction endpoint
+        run: |
+          response=$(curl --fail --silent --show-error \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"Pclass":1,"Sex":"female","Age":25,"SibSp":0,"Parch":0,"Fare":80,"Embarked":"C","Name":"Smith, Miss. Jane"}' \
+            http://localhost:5000/predict)
+
+          echo "Prediction response: $response"
+          echo "$response" | grep -q '"prediction"'
+          echo "$response" | grep -q '"prediction_code"'
+
+      - name: Show Docker container logs
+        if: always()
+        run: docker logs titanic-ml-container || true
+
+      - name: Stop and remove Docker container
+        if: always()
+        run: docker rm -f titanic-ml-container || true
+
+      # Prepare the release package
       - name: Prepare release candidate
         run: |
           mkdir -p release_candidate
@@ -62,11 +110,14 @@ jobs:
           cp titanic_model.pkl release_candidate/
           cp metrics.json release_candidate/
           cp requirements.txt release_candidate/
+          cp Dockerfile release_candidate/
+          cp .dockerignore release_candidate/
           printf '%s\n' \
             'Titanic Survival Prediction Application' \
             'Start: python app.py' \
             'Health endpoint: GET /' \
             'Prediction endpoint: POST /predict' \
+            'Docker build: docker build -t titanic-ml:1.0 .' \
             > release_candidate/DEPLOYMENT.txt
 
       - name: Upload release candidate
@@ -76,4 +127,3 @@ jobs:
           path: release_candidate/
           if-no-files-found: error
           retention-days: 7
-
