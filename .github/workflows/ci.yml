@@ -176,22 +176,36 @@ jobs:
           docker logs titanic-ghcr-container
           exit 1
 
+      
       - name: Test GHCR prediction endpoint
         if: github.event_name != 'pull_request'
         run: |
-          response=$(curl --fail-with-body --silent --show-error \
+          status=$(curl --silent --show-error \
+            -o response.json \
+            -w "%{http_code}" \
             -X POST \
             -H "Content-Type: application/json" \
-            -d '{"Pclass":3,"Sex":"male","Age":22,"SibSp":1,"Parch":0,"Fare":7.25,"Embarked":"S"}' \
-            http://localhost:5001/predict)
+            -d '{"Pclass":1,"Sex":"female","Age":25,"SibSp":0,"Parch":0,"Fare":80,"Embarked":"C","Name":"Smith, Miss. Jane"}' \
+            http://localhost:5001/predict) || {
+              echo "Request failed to connect to the API."
+              docker logs titanic-ghcr-container || true
+              exit 1
+            }
 
-          echo "GHCR prediction response: $response"
-          echo "$response" | grep -q '"prediction"'
-          echo "$response" | grep -q '"prediction_code"'
+          echo "HTTP status: $status"
+          echo "GHCR prediction response:"
+          cat response.json
 
-      - name: Show GHCR container logs
-        if: always()
-        run: docker logs titanic-ghcr-container || true
+          if [ "$status" != "200" ]; then
+            echo "Prediction API returned an unexpected HTTP status."
+            docker logs titanic-ghcr-container || true
+            exit 1
+          fi
+
+          grep -q '"prediction"' response.json
+          grep -q '"prediction_code"' response.json
+          echo "GHCR prediction test passed."
+
 
       - name: Remove GHCR container
         if: always()
