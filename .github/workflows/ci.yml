@@ -19,20 +19,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      # Step 2: Set up Python
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
+      # Step 3: Install dependencies
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
       - name: Install ML dependencies
         run: pip install -r requirements.txt
 
+      # Step 4: Train and validate the ML model
       - name: Train Titanic model
         run: python titanic_model.py
 
@@ -45,6 +49,7 @@ jobs:
       - name: Run prediction API tests
         run: python -m unittest test_app.py -v
 
+      # Step 5: Upload validated ML artifacts
       - name: Upload validated ML artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -56,10 +61,11 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      # Practical-7: Build Docker image
+      # Step 6: Build Docker image
       - name: Build Docker image
         run: docker build -t titanic-ml:${{ github.sha }} .
 
+      # Step 7: Start test container
       - name: Start Docker container
         run: |
           docker run -d \
@@ -67,19 +73,24 @@ jobs:
             -p 5000:5000 \
             titanic-ml:${{ github.sha }}
 
+      # Step 8: Test application health endpoint
       - name: Test application health endpoint
         run: |
           for i in {1..15}; do
-            if curl --fail --silent http://localhost:5000/; then
+            if curl --fail --silent \
+              http://localhost:5000/; then
               echo "Application is ready."
               exit 0
             fi
+
             echo "Waiting for application... attempt $i"
             sleep 2
           done
+
           docker logs titanic-ml-container
           exit 1
 
+      # Step 9: Test prediction endpoint
       - name: Test prediction endpoint
         run: |
           response=$(curl --fail --silent --show-error \
@@ -92,15 +103,17 @@ jobs:
           echo "$response" | grep -q '"prediction"'
           echo "$response" | grep -q '"prediction_code"'
 
+      # Step 10: Show container logs
       - name: Show Docker container logs
         if: always()
         run: docker logs titanic-ml-container || true
 
+      # Step 11: Remove test container
       - name: Stop and remove Docker container
         if: always()
         run: docker rm -f titanic-ml-container || true
 
-      # Prepare release package
+      # Step 12: Prepare release candidate
       - name: Prepare release candidate
         run: |
           mkdir -p release_candidate
@@ -110,6 +123,7 @@ jobs:
           cp requirements.txt release_candidate/
           cp Dockerfile release_candidate/
           cp .dockerignore release_candidate/
+
           printf '%s\n' \
             'Titanic Survival Prediction Application' \
             'Start: python app.py' \
@@ -118,6 +132,7 @@ jobs:
             'Docker build: docker build -t titanic-ml:1.0 .' \
             > release_candidate/DEPLOYMENT.txt
 
+      # Step 13: Upload release candidate
       - name: Upload release candidate
         uses: actions/upload-artifact@v4
         with:
@@ -126,7 +141,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      # Practical-8: Publish the tested image to GHCR
+      # Step 14: Authenticate to GHCR
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -135,33 +150,42 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Tag image for GHCR
+      # Step 15: Create latest and commit-specific tags
+      - name: Tag tested image for GHCR
         if: github.event_name != 'pull_request'
         run: |
-          docker tag titanic-ml:${{ github.sha }} ghcr.io/ramisetty88/titanic-ml-app:v1
-          docker tag titanic-ml:${{ github.sha }} ghcr.io/ramisetty88/titanic-ml-app:latest
+          IMAGE_ID="ghcr.io/${{ github.repository_owner }}/titanic-ml-app"
+          IMAGE_ID=$(echo "$IMAGE_ID" | tr '[:upper:]' '[:lower:]')
 
-      - name: Push v1 image
+          docker tag titanic-ml:${{ github.sha }} "$IMAGE_ID:latest"
+          docker tag titanic-ml:${{ github.sha }} "$IMAGE_ID:sha-${{ github.sha }}"
+
+      # Step 16: Publish tested image
+      - name: Push tested image to GHCR
         if: github.event_name != 'pull_request'
-        run: docker push ghcr.io/ramisetty88/titanic-ml-app:v1
+        run: |
+          IMAGE_ID="ghcr.io/${{ github.repository_owner }}/titanic-ml-app"
+          IMAGE_ID=$(echo "$IMAGE_ID" | tr '[:upper:]' '[:lower:]')
 
-      - name: Push latest image
-        if: github.event_name != 'pull_request'
-        run: docker push ghcr.io/ramisetty88/titanic-ml-app:latest
+          docker push "$IMAGE_ID:latest"
+          docker push "$IMAGE_ID:sha-${{ github.sha }}"
 
-      # Verify the published image can be pulled and run
+      # Step 17: Pull exact published image
       - name: Pull image from GHCR
         if: github.event_name != 'pull_request'
-        run: docker pull ghcr.io/ramisetty88/titanic-ml-app:v1
+        run: |
+          docker pull ghcr.io/${{ github.repository_owner }}/titanic-ml-app:sha-${{ github.sha }}
 
+      # Step 18: Run published image
       - name: Run container from GHCR
         if: github.event_name != 'pull_request'
         run: |
           docker run -d \
             --name titanic-ghcr-container \
             -p 5001:5000 \
-            ghcr.io/ramisetty88/titanic-ml-app:v1
+            ghcr.io/${{ github.repository_owner }}/titanic-ml-app:sha-${{ github.sha }}
 
+      # Step 19: Test published image health
       - name: Test GHCR health endpoint
         if: github.event_name != 'pull_request'
         run: |
@@ -170,13 +194,15 @@ jobs:
               echo "GHCR container is healthy."
               exit 0
             fi
+
             echo "Waiting for GHCR container... attempt $i"
             sleep 2
           done
+
           docker logs titanic-ghcr-container
           exit 1
 
-      
+      # Step 20: Test published image prediction
       - name: Test GHCR prediction endpoint
         if: github.event_name != 'pull_request'
         run: |
@@ -204,9 +230,10 @@ jobs:
 
           grep -q '"prediction"' response.json
           grep -q '"prediction_code"' response.json
+
           echo "GHCR prediction test passed."
 
-
+      # Step 21: Clean up published-image test container
       - name: Remove GHCR container
         if: always()
         run: docker rm -f titanic-ghcr-container || true
