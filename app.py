@@ -78,12 +78,15 @@ def log_request(response):
     return response
 
 
+
 @app.get("/")
+@app.get("/health")
 def health_check():
     return jsonify({
         "status": "ok",
         "service": "titanic-survival-prediction"
-    })
+    }), 200
+
 
 
 @app.post("/predict")
